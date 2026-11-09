@@ -5,6 +5,7 @@
 """
 
 import json
+import random
 from functools import cache
 from pathlib import Path
 
@@ -77,3 +78,38 @@ def get_lecture_summary(lecture: int) -> str:
         available = sorted(p.stem for p in (DATA_DIR / "lectures").glob("*.md"))
         return f"第{lecture}回の要点はまだありません。用意されている回: {', '.join(available)}"
     return path.read_text(encoding="utf-8")
+
+
+def make_quiz(lecture: int) -> str:
+    """指定した回の用語から 1つを選び、
+    確認問題と答え、および詳細な解説を返す。
+
+    「第2回の確認問題を出して」のように、
+    復習用の問題を求められたときに使う。
+    """
+    terms = [term for term in load_glossary() if term["lecture"] == lecture]
+    if not terms:
+        return f"第{lecture}回の用語が用語集に見つかりませんでした。"
+
+    term = random.choice(terms)
+    glossary = load_glossary()
+    related = term.get("related", [])
+    names = {entry.get("id", entry.get("term")): entry["term"] for entry in glossary}
+    related_terms = [names.get(r, r) for r in related[:3]]
+    related_text = ", ".join(related_terms) if related_terms else "関連する用語は特にありません"
+
+    explanation = (
+        f"{term['term']}は、{term['definition']}という意味です。"
+        f"第{lecture}回で学ぶ重要な概念であり、関連する用語として {related_text} があります。"
+        "この用語のポイントは、辞書の定義だけでなく、その背景や役割を自分の言葉で説明できるかです。"
+        "問題を解くときは、定義を短く言い換え、なぜ重要なのかを意識して答えると理解しやすくなります。"
+    )
+
+    return json.dumps(
+        {
+            "question": f"「{term['term']}」の意味は？",
+            "answer": term["definition"],
+            "explanation": explanation,
+        },
+        ensure_ascii=False,
+    )
